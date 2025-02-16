@@ -141,3 +141,55 @@ def show_correct(res):
     ''' показать результат - установим переданный текст в надпись "результат" и покажем нужную панель '''
     lb_Result.setText(res)
     show_result()
+
+
+def check_answer():
+    ''' если выбран какой-то вариант ответа, то надо проверить и показать панель ответов'''
+    if answers[0].isChecked():
+        # правильный ответ!
+        show_correct('Правильно!')
+    else:
+        if answers[1].isChecked() or answers[2].isChecked() or answers[3].isChecked():
+            # неправильный ответ!
+            show_correct('Неверно!')
+
+
+def next_question():
+    ''' задает следующий вопрос из списка '''
+    # этой функции нужна переменная, в которой будет указываться номер текущего вопроса
+    # эту переменную можно сделать глобальной, либо же сделать свойством "глобального объекта" (app или window)
+    # мы заведем (ниже) свойство window.cur_question.
+    window.cur_question = window.cur_question + 1 # переходим к следующему вопросу
+    if window.cur_question >= len(questions_list):
+        window.cur_question = 0 # если список вопросов закончился - идем сначала
+    q = questions_list[window.cur_question] # взяли вопрос
+    ask(q) # спросили
+
+
+def click_OK():
+    ''' определяет, надо ли показывать другой вопрос либо проверить ответ на этот '''
+    if btn_OK.text() == 'Ответить':
+        check_answer() # проверка ответа
+    else:
+        next_question() # следующий вопрос
+
+
+window = QWidget()
+window.setLayout(layout_card)
+window.setWindowTitle('Memo Card')
+# текущий вопрос из списка сделаем свойством объекта "окно", так мы сможем спокойно менять его из функции:
+window.cur_question = -1    # по-хорошему такие переменные должны быть свойствами, 
+                            # только надо писать класс, экземпляры которого получат такие свойства, 
+                            # но python позволяет создать свойство у отдельно взятого экземпляра
+
+
+btn_OK.clicked.connect(click_OK) # по нажатии на кнопку выбираем, что конкретно происходит
+
+
+# все настроено, осталось задать вопрос и показать окно:
+next_question()
+window.resize(400, 300)
+window.show()
+app.exec()
+
+
