@@ -1,0 +1,216 @@
+
+import telebot
+from telebot import types
+import os
+
+API_TOKEN = '1692231443:AAG0gzr6bqsz3JpsL89E9bA_Wvs6z_q4NSM'
+ADMIN_ID = 825037592
+bot = telebot.TeleBot(API_TOKEN)
+
+
+
+@bot.message_handler(commands=['start'])
+def start(message):
+
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    btn1 = types.KeyboardButton("👋 Поздороваться")
+    btn2 = types.KeyboardButton('Помощь')
+    markup.add(btn1, btn2)
+    bot.send_message(message.from_user.id, "👋 Привет! Я помощьник Алгоритмик, я помогу тебе посмотеть сколько астрокоинов у твоего ребенка", reply_markup=markup)
+ 
+
+students_data = {
+    "Вп_Вт-18:30": {
+        "Артем": 0,
+        "student2": 0
+    },
+    "КГ_сб-11": {
+        "student3": 0,
+        "student4": 0
+    }
+}
+@bot.message_handler(commands=['start1'])
+def start_command(message):
+    show_group_selection(message.chat.id)
+
+def show_group_selection(chat_id):
+    # Создаем клавиатуру для выбора группы
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    for group in students_data.keys():
+        keyboard.add(types.KeyboardButton(group))
+    #keyboard.add(types.KeyboardButton("Добавить ученика"))  # Кнопка для добавления ученика
+    keyboard.add(types.KeyboardButton("Назад"))  # Кнопка "Назад"
+    btn4 = types.KeyboardButton('В начало')  # Кнопка "Назад"
+    keyboard.add(btn4)
+    bot.send_message(chat_id, "Привет! Выберите группу:", reply_markup=keyboard)
+
+@bot.message_handler(func=lambda message: message.text in students_data.keys())
+def show_students(message):
+    group_name = message.text
+    students = students_data[group_name]
+    
+    # Создаем клавиатуру для выбора ученика
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    for student in students.keys():
+        keyboard.add(types.KeyboardButton(student))
+    keyboard.add(types.KeyboardButton("Назад"))
+    btn4 = types.KeyboardButton('В начало')  # Кнопка "Назад"
+    keyboard.add(btn4)
+    bot.send_message(message.chat.id, f"Список учеников в группе {group_name}:\nВыберите ученика:", reply_markup=keyboard)
+
+@bot.message_handler(func=lambda message: any(message.text in students_data[group] for group in students_data.keys()))
+def show_student_info(message):
+    # Получаем информацию о выбранном ученике
+    for group, students in students_data.items():
+        if message.text in students:
+            value = students[message.text]
+            bot.send_message(message.chat.id, f"Информация о {message.text}:\nЗначение: {value}")
+            # Возврат к выбору группы
+            show_group_selection(message.chat.id)
+            return
+
+@bot.message_handler(func=lambda message: message.text == "Назад")
+def go_back(message):
+    show_group_selection(message.chat.id)
+
+@bot.message_handler(commands=['view'])
+def view_data(message):
+    user_id = message.from_user.id
+    data = "\n".join([f"{group}:\n" + "\n".join([f"{student}: {value}" for student, value in students.items()]) for group, students in students_data.items()])
+    
+    if user_id == ADMIN_ID:
+        bot.send_message(message.chat.id, f"Вы администратор. Используйте /set для изменения значений.\n\nДанные учеников:\n{data}")
+    else:
+        bot.send_message(message.chat.id, f"Данные учеников:\n{data}")
+
+@bot.message_handler(commands=['set'])
+def set_data(message):
+    user_id = message.from_user.id
+    if user_id != ADMIN_ID:
+        bot.send_message(message.chat.id, "У вас нет прав для изменения данных.")
+        return
+
+    args = message.text.split()[1:]  # Получаем аргументы после команды
+    if len(args) != 3:
+        bot.send_message(message.chat.id, "Используйте: /set <группа> <имя ученика> <новое значение>")
+        return
+
+    group_name, student_name, new_value = args[0], args[1], args[2]
+
+    if group_name in students_data and student_name in students_data[group_name]:
+        try:
+            students_data[group_name][student_name] = int(new_value)
+            bot.send_message(message.chat.id, f"Значение для {student_name} в группе {group_name} обновлено на {new_value}.")
+        except ValueError:
+            bot.send_message(message.chat.id, "Пожалуйста, введите корректное числовое значение.")
+    else:
+        bot.send_message(message.chat.id, "Ученик или группа не найдены.")
+
+@bot.message_handler(func=lambda message: message.text == "Добавить ученика")
+def add_student(message):
+    user_id = message.from_user.id
+    if user_id != ADMIN_ID:
+        bot.send_message(message.chat.id, "У вас нет прав для добавления учеников.")
+        return
+
+    # Запрашиваем информацию для добавления ученика
+    bot.send_message(message.chat.id, "Введите команду в формате: /add <группа> <имя ученика> <начальное значение>")
+
+@bot.message_handler(commands=['add'])
+def process_add_student(message):
+    user_id = message.from_user.id
+    if user_id != ADMIN_ID:
+        bot.send_message(message.chat.id, "У вас нет прав для добавления учеников.")
+        return
+
+    args = message.text.split()[1:]  # Получаем аргументы после команды
+    if len(args) != 3:
+        bot.send_message(message.chat.id, "Используйте: /add <группа> <имя ученика> <начальное значение>")
+        return
+
+    group_name, student_name, initial_value = args[0], args[1], args[2]
+
+    if group_name in students_data:
+        if student_name not in students_data[group_name]:
+            try:
+                # Добавляем ученика с начальным значением
+                students_data[group_name][student_name] = int(initial_value)
+                bot.send_message(message.chat.id, f"Ученик {student_name} добавлен в группу {group_name} с начальным значением {initial_value}.")
+            except ValueError:
+                bot.send_message(message.chat.id, "Пожалуйста, введите корректное числовое значение для начального значения.")
+        else:
+            bot.send_message(message.chat.id, "Этот ученик уже существует в группе.")
+    else:
+        bot.send_message(message.chat.id, "Группа не найдена.")
+
+@bot.message_handler(commands=['help'])
+def help(message):
+    bot.send_message(message.from_user.id,'В боте есть выбор групп а так же инструкция как войти в алгоритмику',parse_mode='Markdown')
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True) #создание новых кнопок
+    btn4 = types.KeyboardButton('В начало')
+    btn5 = types.KeyboardButton('Отправить другу')
+    markup.add(btn4, btn5)
+    bot.send_message(message.from_user.id, '❓ Что тебя интересует', reply_markup=markup) #ответ бота
+
+@bot.message_handler(commands = ['switch'])
+def switch(message):
+    markup = types.InlineKeyboardMarkup()
+    switch_button = types.InlineKeyboardButton(text='Отправить другу', switch_inline_query="Алгоритмика_Бот")
+    markup.add(switch_button)
+    bot.send_message(message.chat.id, "Выбрать кому отправить", reply_markup = markup)
+
+
+@bot.message_handler(commands = ['url'])
+def url(message):
+    markup = types.InlineKeyboardMarkup()
+    btn_my_site= types.InlineKeyboardButton(text='Вход в Алгоритмику', url='https://learn.algoritmika.org/login/')
+    markup.add(btn_my_site)
+    bot.send_message(message.chat.id, "💻Нажми на кнопку и перейди на наш сайт.", reply_markup = markup)
+
+@bot.message_handler(content_types=['text'])
+def get_text_messages(message):
+    if message.text == '👋 Поздороваться':
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True) #создание новых кнопок
+        btn1 = types.KeyboardButton('Наши курсы')
+        btn2 = types.KeyboardButton('💻Как зайти на платфору Алгоритмика')
+        btn3 = types.InlineKeyboardButton('⭐Астрокоины детей')
+        btn4 = types.KeyboardButton('В начало')
+        btn5 = types.KeyboardButton('Отправить другу')
+        markup.add(btn1, btn2, btn3, btn4, btn5)
+        bot.send_message(message.from_user.id, '❓ Что тебя интересует', reply_markup=markup) #ответ бота
+        
+
+    elif message.text == 'Наши курсы':
+        bot.send_message(message.from_user.id, 'У нас есть курсы по таким специальностям как:')
+        markup = types.InlineKeyboardMarkup()
+        start_keyboard = types.InlineKeyboardMarkup()
+        menu = types.InlineKeyboardButton(text="фото", callback_data='men')
+        start_keyboard.add(menu)
+        bot.send_message(message.chat.id, "получить фото", reply_markup=start_keyboard)  
+
+        btn1= types.InlineKeyboardButton('Графический Дизайн', url='https://learn.algoritmika.org/login/')
+        btn2= types.InlineKeyboardButton('Олип', url='https://learn.algoritmika.org/login/')
+        btn3= types.InlineKeyboardButton('Компьютерная грамотность', url='https://learn.algoritmika.org/login/')
+        btn4= types.InlineKeyboardButton('Визуальное программировае', url='https://learn.algoritmika.org/login/')
+        btn5= types.InlineKeyboardButton('Гейм Дизайн', url='https://learn.algoritmika.org/login/')
+        btn5= types.InlineKeyboardButton('Unity', url='https://learn.algoritmika.org/login/')
+        btn6= types.InlineKeyboardButton('Математика', url='https://learn.algoritmika.org/login/')
+        btn7= types.InlineKeyboardButton('Python', url='https://learn.algoritmika.org/login/')
+        markup.add(btn1, btn2,btn3,btn4,btn5,btn6,btn7)
+        bot.send_message(message.chat.id, "💻Нажми на кнопку и перейди на наш сайт.", reply_markup = markup)
+
+    elif message.text == '💻Как зайти на платфору Алгоритмика':
+        bot.send_message(message.from_user.id, 'Добрый день, уважаемые родители!  Ребята попросили чтобы я скинул инструкцию как заходить на платформу дома. Направляю вам подробную инструкцию для проверки того, что мы с ребятами проходим на уроках:\n 1.⁠⁠В любом браузере нужно ввести «Алгоритмика вход». learn.algoritmika.org - первым будет такая ссылка, вам нужно зайти по ней\n 2.⁠⁠Вы на платформе Алгоритмики;\n 3.⁠⁠⁠Далее нужно ввести логин и пароль. Кто не знает, напишите мне в личные сообщения - я пришлю логин и пароль;\n 4.⁠⁠⁠Затем нужно будет зайти во вкладку курс;\n \n5.⁠⁠Все достижения ребенка у вас перед глазами. ', parse_mode='Markdown')
+        url(message)
+    elif message.text == '⭐Астрокоины детей':
+        start_command(message)
+        
+    elif message.text == 'В начало':
+        start(message)
+    elif message.text == 'Отправить другу':
+        switch(message)
+    elif message.text == 'Помощь':
+        help(message)
+
+
+bot.polling(none_stop=True, interval=0) #обязательная для работы бота частьmport telebot
